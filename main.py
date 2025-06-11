@@ -68,17 +68,17 @@ def hand_pos(finger_angle):
     f5 = finger_angle[4]   # 小拇指角度
 
     # 小於 50 表示手指伸直，大於等於 50 表示手指捲縮
-    if f1<50 and f2>=50 and f3>=50 and f4>=50 and f5>=50:
-        return 'good'
-    elif f1>=50 and f2>=50 and f3<50 and f4>=50 and f5>=50:
-        return 'no!!!'
-    elif f1<50 and f2<50 and f3>=50 and f4>=50 and f5<50:
-        return 'ROCK!'
-    elif f1>=50 and f2>=50 and f3>=50 and f4>=50 and f5>=50:
-        return '0'
-    elif f1>=50 and f2>=50 and f3>=50 and f4>=50 and f5<50:
-        return 'pink'
-    elif f1>=50 and f2<50 and f3>=50 and f4>=50 and f5>=50:
+    # if f1<50 and f2>=50 and f3>=50 and f4>=50 and f5>=50:
+    #     return 'good'
+    # elif f1>=50 and f2>=50 and f3<50 and f4>=50 and f5>=50:
+    #     return 'no!!!'
+    # elif f1<50 and f2<50 and f3>=50 and f4>=50 and f5<50:
+    #     return 'ROCK!'
+    # elif f1>=50 and f2>=50 and f3>=50 and f4>=50 and f5>=50:
+    #     return '0'
+    # elif f1>=50 and f2>=50 and f3>=50 and f4>=50 and f5<50:
+    #     return 'pink'
+    if f1>=50 and f2<50 and f3>=50 and f4>=50 and f5>=50:
         return '1'
     elif f1>=50 and f2<50 and f3<50 and f4>=50 and f5>=50:
         return '2'
@@ -92,14 +92,14 @@ def hand_pos(finger_angle):
         return '4'
     elif f1<50 and f2<50 and f3<50 and f4<50 and f5<50:
         return '5'
-    elif f1<50 and f2>=50 and f3>=50 and f4>=50 and f5<50:
-        return '6'
-    elif f1<50 and f2<50 and f3>=50 and f4>=50 and f5>=50:
-        return '7'
-    elif f1<50 and f2<50 and f3<50 and f4>=50 and f5>=50:
-        return '8'
-    elif f1<50 and f2<50 and f3<50 and f4<50 and f5>=50:
-        return '9'
+    # elif f1<50 and f2>=50 and f3>=50 and f4>=50 and f5<50:
+    #     return '6'
+    # elif f1<50 and f2<50 and f3>=50 and f4>=50 and f5>=50:
+    #     return '7'
+    # elif f1<50 and f2<50 and f3<50 and f4>=50 and f5>=50:
+    #     return '8'
+    # elif f1<50 and f2<50 and f3<50 and f4<50 and f5>=50:
+    #     return '9'
     else:
         return ''
 
@@ -119,6 +119,16 @@ last_gesture = None
 last_change_time = time.time()
 handled_gesture = False
 input_interval = 1.0  # 每 1 秒讀取一次穩定手勢
+
+recognizer = cv2.face.LBPHFaceRecognizer_create()         # 啟用訓練人臉模型方法
+recognizer.read('face.yml')                               # 讀取人臉模型檔
+xml_path = cv2.data.haarcascades + 'haarcascade_frontalface_default.xml'
+face_cascade = cv2.CascadeClassifier(xml_path)
+
+name = {
+    '1':'Trump',
+    '2':'Biden'
+}
 
 def process_gesture(gesture):
     global last_gesture, last_change_time, handled_gesture
@@ -149,68 +159,85 @@ with mp_hands.Hands(
     if not cap.isOpened():
         print("Cannot open camera")
         exit()
-    w, h = 1080, 720                                  # 影像尺寸
+    wide, height = 1080, 720                                  # 影像尺寸
+    
+    user_login = False
     while True:
         ret, frame = cap.read()
-        frame = cv2.resize(frame, (w,h))                 # 縮小尺寸，加快處理效率
+        frame = cv2.resize(frame, (wide,height))                 # 縮小尺寸，加快處理效率
         if not ret:
             print("Cannot receive frame")
             break
         
-        game.update()
-
-        img2 = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)  # 轉換成 RGB 色彩
-        results = hands.process(img2)                # 偵測手勢
-        if results.multi_hand_landmarks:
-            for hand_landmarks in results.multi_hand_landmarks:
-                finger_points = []                   # 記錄手指節點座標的串列
-                for i in hand_landmarks.landmark:
-                    # 將 21 個節點換算成座標，記錄到 finger_points
-                    x = i.x*w
-                    y = i.y*h
-                    finger_points.append((x,y))
-                if finger_points:
-                    finger_angle = hand_angle(finger_points) # 計算手指角度，回傳長度為 5 的串列
-                    #print(finger_angle)                     # 印出角度 ( 有需要就開啟註解 )
+        #人臉辨識功能
+        gray = cv2.cvtColor(frame,cv2.COLOR_BGR2GRAY)  # 轉換成黑白
+        faces = face_cascade.detectMultiScale(gray)  # 追蹤人臉 ( 目的在於標記出外框 )
+        # 依序判斷每張臉屬於哪個 id
+        for(x,y,w,h) in faces:
+            cv2.rectangle(frame,(x,y),(x+w,y+h),(0,255,0),2)            # 標記人臉外框
+            idnum,confidence = recognizer.predict(gray[y:y+h,x:x+w])  # 取出 id 號碼以及信心指數 confidence
+            if confidence < 60:
+                preson_name = name[str(idnum)]                               # 如果信心指數小於 60，取得對應的名字
+            else:
+                preson_name = '???'                                          # 不然名字就是 ???
+            # 在人臉外框旁加上名字
+            cv2.putText(frame, preson_name, (x,y-5),cv2.FONT_HERSHEY_SIMPLEX, 1, (0,255,0), 2, cv2.LINE_AA)
+        
+        if user_login: 
+            game.update()
+            
+            img2 = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)  # 轉換成 RGB 色彩
+            results = hands.process(img2)                # 偵測手勢
+            if results.multi_hand_landmarks:
+                for hand_landmarks in results.multi_hand_landmarks:
+                    finger_points = []                   # 記錄手指節點座標的串列
+                    for i in hand_landmarks.landmark:
+                        # 將 21 個節點換算成座標，記錄到 finger_points
+                        x = i.x*w
+                        y = i.y*h
+                        finger_points.append((x,y))
+                    if finger_points:
+                        finger_angle = hand_angle(finger_points) # 計算手指角度，回傳長度為 5 的串列
+                        #print(finger_angle)                     # 印出角度 ( 有需要就開啟註解 )
+                        
+                        text = hand_pos(finger_angle)            # 取得手勢所回傳的內容
+            
+            cv2.putText(frame, text, (800,120), fontFace, 5, (0,0,255), 10, lineType) # 印出當前手勢
+            
+            #比OK即開始遊戲
+            if game.status == 'waiting':
+                cv2.putText(frame, "Waiting the game to start", (50, 50), font, 0.9, (0, 255, 255), 2)
+                cv2.putText(frame, f"Show ok to start the game", (50, 100), font, 0.9, (255, 255, 0), 2)
+                if text == "ok":
+                    game.start()
                     
-                    text = hand_pos(finger_angle)            # 取得手勢所回傳的內容
-        
-        cv2.putText(frame, text, (800,120), fontFace, 5, (0,0,255), 10, lineType) # 印出當前手勢
-        
-        #比OK即開始遊戲
-        if game.status == 'waiting':
-            cv2.putText(frame, "Waiting the game to start", (50, 50), font, 0.9, (0, 255, 255), 2)
-            cv2.putText(frame, f"Show ok to start the game", (50, 100), font, 0.9, (255, 255, 0), 2)
-            if text == "ok":
-                game.start()
-                
-        if game.status == 'showing':
-            cv2.putText(frame, "remember this five number:", (50, 50), font, 0.9, (0, 255, 255), 2)
-            cv2.putText(frame, ' '.join(map(str, game.answer)), (50, 100), font, 1.2, (0, 255, 0), 3)
-            sec = 3 - int(time.time() - game.display_start)
-            cv2.putText(frame, f"You still have {sec} second to remember...", (50, 150), font, 0.8, (255, 0, 0), 2)
+            if game.status == 'showing':
+                cv2.putText(frame, "remember this five number:", (50, 50), font, 0.9, (0, 255, 255), 2)
+                cv2.putText(frame, ' '.join(map(str, game.answer)), (50, 100), font, 1.2, (0, 255, 0), 3)
+                sec = 3 - int(time.time() - game.display_start)
+                cv2.putText(frame, f"You still have {sec} second to remember...", (50, 150), font, 0.8, (255, 0, 0), 2)
 
-        elif game.status == 'playing':
-            cv2.putText(frame, f"Time left: {game.time_left():.1f}s", (50, 50), font, 0.9, (0, 255, 0), 2)
-            cv2.putText(frame, f"Your input: {' '.join(map(str, game.user_input))}", (50, 100), font, 0.9, (255, 255, 0), 2)
+            elif game.status == 'playing':
+                cv2.putText(frame, f"Time left: {game.time_left():.1f}s", (50, 50), font, 0.9, (0, 255, 0), 2)
+                cv2.putText(frame, f"Your input: {' '.join(map(str, game.user_input))}", (50, 100), font, 0.9, (255, 255, 0), 2)
 
-        elif game.status == 'win':
-            cv2.putText(frame, "You win", (100, 100), font, 1.0, (0, 255, 0), 3)
-            cv2.putText(frame, f"User has successfully sign-in", (50, 150), font, 0.9, (200, 200, 255), 2)
+            elif game.status == 'win':
+                cv2.putText(frame, "You win", (100, 100), font, 1.0, (0, 255, 0), 3)
+                cv2.putText(frame, f"User has successfully sign-in", (50, 150), font, 0.9, (200, 200, 255), 2)
 
-        elif game.status == 'fail':
-            cv2.putText(frame, "You lose", (50, 100), font, 1.0, (0, 0, 255), 3)
-            cv2.putText(frame, f"Answer: {' '.join(map(str, game.answer))}", (50, 150), font, 0.8, (0, 255, 255), 2)
-        
-        
+            elif game.status == 'fail':
+                cv2.putText(frame, "You lose", (50, 100), font, 1.0, (0, 0, 255), 3)
+                cv2.putText(frame, f"Answer: {' '.join(map(str, game.answer))}", (50, 150), font, 0.8, (0, 255, 255), 2)
+            
+            if game.status == 'playing':
+                if text in ['1','2','3','4','5']:
+                    process_gesture(text)
+                    #game.handle_input(int(text)
+                    
         key = cv2.waitKey(30) & 0xFF
         if key == ord('q'):
-            break
-        elif game.status == 'playing':
-            if text in ['1','2','3','4','5']:
-                process_gesture(text)
-                #game.handle_input(int(text)
-        
+                break
+            
         cv2.imshow('sign-in-game', frame)
 cap.release()
 cv2.destroyAllWindows()

@@ -22,7 +22,7 @@ while True:
         '1':'Trump',
         '2':'Biden'
     }
-
+    
     # 依序判斷每張臉屬於哪個 id
     for(x,y,w,h) in faces:
         cv2.rectangle(frame,(x,y),(x+w,y+h),(0,255,0),2)            # 標記人臉外框
