@@ -78,7 +78,9 @@ def hand_pos(finger_angle):
     #     return '0'
     # elif f1>=50 and f2>=50 and f3>=50 and f4>=50 and f5<50:
     #     return 'pink'
-    if f1>=50 and f2<50 and f3>=50 and f4>=50 and f5>=50:
+    if f1<50 and f2>=50 and f3>=50 and f4>=50 and f5>=50:
+        return 'good'
+    elif f1>=50 and f2<50 and f3>=50 and f4>=50 and f5>=50:
         return '1'
     elif f1>=50 and f2<50 and f3<50 and f4>=50 and f5>=50:
         return '2'
@@ -124,6 +126,9 @@ recognizer = cv2.face.LBPHFaceRecognizer_create()         # 啟用訓練人臉�
 recognizer.read('face.yml')                               # 讀取人臉模型檔
 xml_path = cv2.data.haarcascades + 'haarcascade_frontalface_default.xml'
 face_cascade = cv2.CascadeClassifier(xml_path)
+
+username = ""
+final_username = ""
 
 name = {
     '1':'Trump',
@@ -177,36 +182,44 @@ with mp_hands.Hands(
             cv2.rectangle(frame,(x,y),(x+w,y+h),(0,255,0),2)            # 標記人臉外框
             idnum,confidence = recognizer.predict(gray[y:y+h,x:x+w])  # 取出 id 號碼以及信心指數 confidence
             if confidence < 60:
-                preson_name = name[str(idnum)]                               # 如果信心指數小於 60，取得對應的名字
+                person_name = name[str(idnum)] # 如果信心指數小於 60，取得對應的名字
+                username = person_name
             else:
-                preson_name = '???'                                          # 不然名字就是 ???
+                person_name = '???' # 不然名字就是 ???
             # 在人臉外框旁加上名字
-            cv2.putText(frame, preson_name, (x,y-5),cv2.FONT_HERSHEY_SIMPLEX, 1, (0,255,0), 2, cv2.LINE_AA)
+            cv2.putText(frame, person_name, (x,y-5),cv2.FONT_HERSHEY_SIMPLEX, 1, (0,255,0), 2, cv2.LINE_AA)
         
+        img2 = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)  # 轉換成 RGB 色彩
+        results = hands.process(img2)                # 偵測手勢
+        if results.multi_hand_landmarks:
+            for hand_landmarks in results.multi_hand_landmarks:
+                finger_points = []                   # 記錄手指節點座標的串列
+                for i in hand_landmarks.landmark:
+                    # 將 21 個節點換算成座標，記錄到 finger_points
+                    x = i.x*wide
+                    y = i.y*height
+                    finger_points.append((x,y))
+                if finger_points:
+                    finger_angle = hand_angle(finger_points) # 計算手指角度，回傳長度為 5 的串列
+                    #print(finger_angle)                     # 印出角度 ( 有需要就開啟註解 )
+                    
+                    text = hand_pos(finger_angle)            # 取得手勢所回傳的內容
+        
+        cv2.putText(frame, text, (600,120), fontFace, 5, (0,0,255), 10, lineType) # 印出當前手勢
+        
+        if not user_login:
+            cv2.putText(frame, f"Detect User: {username}", (50, 50), font, 0.9, (0, 255, 255), 2)
+            cv2.putText(frame, f"Show good to confirm", (50, 100), font, 0.9, (255, 255, 0), 2)
+            final_username = username
+            if text == "good" and final_username!= "":
+                user_login = True
+               
         if user_login: 
             game.update()
             
-            img2 = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)  # 轉換成 RGB 色彩
-            results = hands.process(img2)                # 偵測手勢
-            if results.multi_hand_landmarks:
-                for hand_landmarks in results.multi_hand_landmarks:
-                    finger_points = []                   # 記錄手指節點座標的串列
-                    for i in hand_landmarks.landmark:
-                        # 將 21 個節點換算成座標，記錄到 finger_points
-                        x = i.x*w
-                        y = i.y*h
-                        finger_points.append((x,y))
-                    if finger_points:
-                        finger_angle = hand_angle(finger_points) # 計算手指角度，回傳長度為 5 的串列
-                        #print(finger_angle)                     # 印出角度 ( 有需要就開啟註解 )
-                        
-                        text = hand_pos(finger_angle)            # 取得手勢所回傳的內容
-            
-            cv2.putText(frame, text, (800,120), fontFace, 5, (0,0,255), 10, lineType) # 印出當前手勢
-            
             #比OK即開始遊戲
             if game.status == 'waiting':
-                cv2.putText(frame, "Waiting the game to start", (50, 50), font, 0.9, (0, 255, 255), 2)
+                cv2.putText(frame, f"User: {final_username}, Waiting the game to start", (50, 50), font, 0.9, (0, 255, 255), 2)
                 cv2.putText(frame, f"Show ok to start the game", (50, 100), font, 0.9, (255, 255, 0), 2)
                 if text == "ok":
                     game.start()
@@ -233,7 +246,9 @@ with mp_hands.Hands(
                 if text in ['1','2','3','4','5']:
                     process_gesture(text)
                     #game.handle_input(int(text)
-                    
+        
+        text = ""
+        
         key = cv2.waitKey(30) & 0xFF
         if key == ord('q'):
                 break
