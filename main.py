@@ -175,7 +175,7 @@ with mp_hands.Hands(
                     
                     text = hand_pos(finger_angle)            # 取得手勢所回傳的內容
         
-        cv2.putText(frame, text, (30,120), fontFace, 5, (0,0,255), 10, lineType) # 印出當前手勢
+        cv2.putText(frame, text, (800,120), fontFace, 5, (0,0,255), 10, lineType) # 印出當前手勢
         
         #比OK即開始遊戲
         if game.status == 'waiting':
